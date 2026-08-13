@@ -56,8 +56,11 @@ public:
     bool Draw(const char* title, std::string& outPath) {
         if (!m_IsOpen) return false;
 
+        // Calculate dynamic scaling factor based on game window width and custom font scale
+        float scale = (ImGui::GetIO().DisplaySize.x / 1600.0f) * (m_FontScale / 0.85f);
+
         bool confirmed = false;
-        ImGui::SetNextWindowSize(ImVec2(700, 500), ImGuiCond_FirstUseEver);
+        ImGui::SetNextWindowSize(ImVec2(700.0f * scale, 500.0f * scale), ImGuiCond_Appearing);
         if (ImGui::Begin(title, &m_IsOpen, ImGuiWindowFlags_NoCollapse)) {
             ImGui::SetWindowFontScale(m_FontScale);
             // Address bar and Navigation Up
@@ -67,7 +70,7 @@ public:
             pathBuf[sizeof(pathBuf) - 1] = '\0';
             
             ImGui::Text("Current Folder:");
-            ImGui::PushItemWidth(-70.0f);
+            ImGui::PushItemWidth(-70.0f * scale);
             if (ImGui::InputText("##PathInput", pathBuf, sizeof(pathBuf), ImGuiInputTextFlags_EnterReturnsTrue)) {
                 std::filesystem::path newPath = Utf8ToPath(pathBuf);
                 if (std::filesystem::exists(newPath) && std::filesystem::is_directory(newPath)) {
@@ -94,7 +97,7 @@ public:
             ImGui::Separator();
 
             // List child window
-            float listHeight = ImGui::GetContentRegionAvail().y - 45.0f;
+            float listHeight = ImGui::GetContentRegionAvail().y - 45.0f * scale;
             if (ImGui::BeginChild("FilesChildList", ImVec2(0, listHeight), true)) {
                 ImGui::SetWindowFontScale(m_FontScale * 0.8f);
                 std::string filterStr(m_SearchFilter);

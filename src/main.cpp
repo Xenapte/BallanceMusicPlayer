@@ -137,7 +137,7 @@ public:
     explicit BallanceMusicPlayer(IBML *bml) : IMod(bml) {}
 
     const char *GetID() override { return "MusicPlayer"; }
-    const char *GetVersion() override { return "0.1.0"; }
+    const char *GetVersion() override { return "0.1.1"; }
     const char* GetName() override { return "Music Player"; }
     const char *GetAuthor() override { return "BallanceBug"; }
     const char *GetDescription() override { return "Standalone Music player mod based on ImGui and Miniaudio."; }
@@ -285,6 +285,9 @@ private:
             m_FirstRender = false;
         }
 
+        // Calculate dynamic scaling factor based on game window width and custom font scale
+        float scale = (ImGui::GetIO().DisplaySize.x / 1600.0f) * (m_FontScale / 0.85f);
+
         // Draw file picker window if open
         if (m_FilePicker.IsOpen()) {
             m_FilePicker.SetFontScale(m_FontScale);
@@ -324,7 +327,7 @@ private:
         ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.15f, 0.15f, 0.18f, m_Opacity * 0.7f));
 
         // Floating music player panel
-        ImGui::SetNextWindowSize(ImVec2(400, 0), ImGuiCond_FirstUseEver);
+        ImGui::SetNextWindowSize(ImVec2(400.0f * scale, 0), ImGuiCond_Always);
         ImGui::SetNextWindowBgAlpha(m_Opacity);
         if (ImGui::Begin("Music Player", &g_MusicPlayerOpen, ImGuiWindowFlags_AlwaysAutoResize)) {
             ImGui::SetWindowFontScale(m_FontScale);
@@ -395,7 +398,7 @@ private:
             const char* repeatModes[] = { "Repeat Off", "Repeat One", "Repeat All" };
             ImGui::Text("Loop:");
             ImGui::SameLine();
-            ImGui::PushItemWidth(110.0f);
+            ImGui::PushItemWidth(110.0f * scale);
             if (ComboWithFontScale("##RepeatMode", &repeatMode, repeatModes, 3, m_FontScale * 0.8f)) {
                 m_Player.SetRepeatMode(repeatMode);
                 SaveConfig();
@@ -405,7 +408,7 @@ private:
             ImGui::SameLine();
             ImGui::Text(" Speed:");
             ImGui::SameLine();
-            ImGui::PushItemWidth(90.0f);
+            ImGui::PushItemWidth(90.0f * scale);
             float speed = m_Player.GetSpeed();
             int speedIdx = GetSpeedIndex(speed);
             if (ComboWithFontScale("##SpeedCombo", &speedIdx, SPEED_LABELS, SPEED_COUNT, m_FontScale * 0.8f)) {
@@ -443,7 +446,7 @@ private:
             if (!playlist.empty()) {
                 ImGui::Separator();
                 ImGui::Text("Playlist (%d tracks):", (int)playlist.size());
-                if (ImGui::BeginChild("PlaylistListChild", ImVec2(0, 110), true)) {
+                if (ImGui::BeginChild("PlaylistListChild", ImVec2(0, 110.0f * scale), true)) {
                     ImGui::SetWindowFontScale(m_FontScale * 0.8f); // Make list font size smaller
                     
                     int activeIdx = m_Player.GetCurrentPlaylistIndex();
