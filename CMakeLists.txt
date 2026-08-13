@@ -12,7 +12,8 @@ add_library(${PROJECT_NAME} SHARED ${BMP_SRC})
 
 target_include_directories(${PROJECT_NAME} PRIVATE
                ${BML_DIR}/../../../include
-               ${VirtoolsSDK_DIR}/../include)
+               ${VirtoolsSDK_DIR}/../include
+               ${CMAKE_CURRENT_SOURCE_DIR}/deps/miniaudio)
 
 target_link_libraries(${PROJECT_NAME}
                       PRIVATE
