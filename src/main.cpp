@@ -15,6 +15,7 @@
 #include "SecondaryConfig.hpp"
 #include "MusicPlayerCore.hpp"
 #include "FilePicker.hpp"
+#include "BallSpeedTracker.hpp"
 
 // Globals for external toggle / API access
 static bool g_MusicPlayerEnabled = true;
@@ -136,7 +137,7 @@ static bool ComboWithFontScale(const char* label, int* current_item, const char*
 
 class BallanceMusicPlayer final : public IMod {
 public:
-    explicit BallanceMusicPlayer(IBML *bml) : IMod(bml) {}
+    explicit BallanceMusicPlayer(IBML *bml) : IMod(bml), m_SpeedTracker(bml) {}
 
     const char *GetID() override { return "MusicPlayer"; }
     const char *GetVersion() override { return "0.1.1"; }
@@ -167,7 +168,8 @@ private:
         internalCfg["LastPath"] = m_Player.GetLastPath();
         internalCfg["LastSongPath"] = m_Player.GetCurrentSongPath();
         internalCfg["IsDirMode"] = m_Player.IsDirectoryMode() ? "true" : "false";
-        internalCfg["Speed"] = std::to_string(m_Player.GetSpeed());
+        internalCfg["Speed"] = std::to_string(m_ManualSpeed);
+        internalCfg["KeepPitch"] = m_Player.GetKeepPitch() ? "true" : "false";
         
         SecondaryConfig::Save(GetInternalConfigPath(), internalCfg);
     }
@@ -181,7 +183,7 @@ private:
 
         IProperty* pHotkey = GetConfig()->GetProperty("Core", "WindowToggleHotkey");
         pHotkey->SetComment("Hotkey to toggle the music player UI");
-        pHotkey->SetDefaultKey(CKKEY_M); // Default: M key (scan code 50)
+        pHotkey->SetDefaultKey(CKKEY_BACKSLASH); // Default: Backslash key (scan code 43)
         
         CKKEYBOARD keyVal = static_cast<CKKEYBOARD>(0);
         if (pHotkey->GetType() == IProperty::KEY) {
@@ -190,7 +192,7 @@ private:
             keyVal = static_cast<CKKEYBOARD>(pHotkey->GetInteger());
         }
         if (keyVal == static_cast<CKKEYBOARD>(0)) {
-            keyVal = CKKEY_M;
+            keyVal = CKKEY_BACKSLASH;
         }
         m_Hotkey = keyVal;
 
@@ -204,6 +206,36 @@ private:
         pOpacity->SetDefaultFloat(0.80f);
         m_Opacity = pOpacity->GetFloat();
 
+        // Register SlidingRheostat config category
+        GetConfig()->SetCategoryComment("SlidingRheostat", "Easter egg: dynamic playback speed based on ball speed.");
+        
+        IProperty* pRheostatMode = GetConfig()->GetProperty("SlidingRheostat", "Mode");
+        pRheostatMode->SetComment("0 = Disabled, 1 = Linear model, 2 = Sliding window model (speed auto adjust based on acceleration/deceleration relative to historical average)");
+        pRheostatMode->SetDefaultInteger(0);
+        m_RheostatMode = pRheostatMode->GetInteger();
+
+        IProperty* pTestInterval = GetConfig()->GetProperty("SlidingRheostat", "SpeedTestInterval");
+        pTestInterval->SetComment("Minimum update interval for speed calculation (milliseconds)");
+        pTestInterval->SetDefaultFloat(100.0f);
+        float testInterval = pTestInterval->GetFloat();
+
+        IProperty* pEasingRate = GetConfig()->GetProperty("SlidingRheostat", "EasingRate");
+        pEasingRate->SetComment("Easing rate for speed changes (0 = instant change, 1 = maximum easing so speed never changes)");
+        pEasingRate->SetDefaultFloat(0.9f);
+        m_EasingRate = std::clamp(pEasingRate->GetFloat(), 0.0f, 1.0f);
+
+        IProperty* pParam1 = GetConfig()->GetProperty("SlidingRheostat", "ExtraParameter1");
+        pParam1->SetComment("For linear model: reference/default speed of the ball (units/second, default 25.0). For sliding window model: history average window size/weight (default 15.0)");
+        pParam1->SetDefaultFloat(25.0f);
+        float param1 = pParam1->GetFloat();
+
+        IProperty* pParam2 = GetConfig()->GetProperty("SlidingRheostat", "ExtraParameter2");
+        pParam2->SetComment("For linear model: slope value for speed scaling (default 0.02). For sliding window model: sensitivity/slope for acceleration scaling (default 0.02)");
+        pParam2->SetDefaultFloat(0.02f);
+        float param2 = pParam2->GetFloat();
+
+        m_SpeedTracker.SetConfigValues(m_RheostatMode, testInterval, param1, param2);
+
         // Load internal secondary configurations
         std::string configPath = GetInternalConfigPath();
         auto internalCfg = SecondaryConfig::Load(configPath);
@@ -216,6 +248,9 @@ private:
         if (internalCfg.count("Shuffle")) {
             m_Player.SetShuffle(internalCfg["Shuffle"] == "true");
         }
+        if (internalCfg.count("KeepPitch")) {
+            m_Player.SetKeepPitch(internalCfg["KeepPitch"] == "true");
+        }
         if (internalCfg.count("RepeatMode")) {
             m_Player.SetRepeatMode(std::stoi(internalCfg["RepeatMode"]));
         }
@@ -225,8 +260,11 @@ private:
             g_MusicPlayerOpen = true; // Default open to true
         }
         if (internalCfg.count("Speed")) {
-            m_Player.SetSpeed(std::stof(internalCfg["Speed"]));
+            m_ManualSpeed = std::stof(internalCfg["Speed"]);
+        } else {
+            m_ManualSpeed = 1.0f;
         }
+        m_Player.SetSpeed(m_ManualSpeed);
 
         std::string lastPath = internalCfg["LastPath"];
         std::string lastSongPath = internalCfg["LastSongPath"];
@@ -258,18 +296,27 @@ private:
     }
 
     void OnModifyConfig(const char *category, const char *key, IProperty *prop) override {
-        if (strcmp(key, "Enabled") == 0) {
-            g_MusicPlayerEnabled = prop->GetBoolean();
-        } else if (strcmp(key, "WindowToggleHotkey") == 0) {
-            if (prop->GetType() == IProperty::KEY) {
-                m_Hotkey = prop->GetKey();
-            } else if (prop->GetType() == IProperty::INTEGER) {
-                m_Hotkey = static_cast<CKKEYBOARD>(prop->GetInteger());
+        if (strcmp(category, "SlidingRheostat") == 0) {
+            m_RheostatMode = GetConfig()->GetProperty("SlidingRheostat", "Mode")->GetInteger();
+            float testInterval = GetConfig()->GetProperty("SlidingRheostat", "SpeedTestInterval")->GetFloat();
+            m_EasingRate = std::clamp(GetConfig()->GetProperty("SlidingRheostat", "EasingRate")->GetFloat(), 0.0f, 1.0f);
+            float param1 = GetConfig()->GetProperty("SlidingRheostat", "ExtraParameter1")->GetFloat();
+            float param2 = GetConfig()->GetProperty("SlidingRheostat", "ExtraParameter2")->GetFloat();
+            m_SpeedTracker.SetConfigValues(m_RheostatMode, testInterval, param1, param2);
+        } else {
+            if (strcmp(key, "Enabled") == 0) {
+                g_MusicPlayerEnabled = prop->GetBoolean();
+            } else if (strcmp(key, "WindowToggleHotkey") == 0) {
+                if (prop->GetType() == IProperty::KEY) {
+                    m_Hotkey = prop->GetKey();
+                } else if (prop->GetType() == IProperty::INTEGER) {
+                    m_Hotkey = static_cast<CKKEYBOARD>(prop->GetInteger());
+                }
+            } else if (strcmp(key, "FontScale") == 0) {
+                m_FontScale = prop->GetFloat();
+            } else if (strcmp(key, "Opacity") == 0) {
+                m_Opacity = prop->GetFloat();
             }
-        } else if (strcmp(key, "FontScale") == 0) {
-            m_FontScale = prop->GetFloat();
-        } else if (strcmp(key, "Opacity") == 0) {
-            m_Opacity = prop->GetFloat();
         }
     }
 
@@ -277,8 +324,27 @@ private:
         if (!g_MusicPlayerEnabled || !m_Init) return;
 
         // Detect toggle hotkey press
-        if (m_BML->GetInputManager()->IsKeyPressed(m_Hotkey)) {
+        if (m_BML->GetInputManager()->oIsKeyPressed(m_Hotkey)) {
             g_MusicPlayerOpen = !g_MusicPlayerOpen;
+        }
+
+        float targetSpeed = m_ManualSpeed;
+        if (m_RheostatMode != 0) {
+            m_SpeedTracker.Update();
+            float rawTarget = m_SpeedTracker.GetTargetPlaybackSpeed(m_ManualSpeed);
+            // EasingRate of 0 means k = 1 (instant), EasingRate of 1 means k = 0 (never changes)
+            float k = 1.0f - m_EasingRate;
+            m_TargetPlaybackSpeed = m_TargetPlaybackSpeed + k * (rawTarget - m_TargetPlaybackSpeed);
+            targetSpeed = m_TargetPlaybackSpeed;
+        } else {
+            m_TargetPlaybackSpeed = m_ManualSpeed;
+            targetSpeed = m_ManualSpeed;
+        }
+
+        // Only call SetSpeed if it changes by more than a threshold
+        if (std::abs(targetSpeed - m_LastSetSpeed) > 0.0001f) {
+            m_Player.SetSpeed(targetSpeed);
+            m_LastSetSpeed = targetSpeed;
         }
 
         DrawUI();
@@ -302,6 +368,8 @@ private:
         if (m_FilePicker.IsOpen()) {
             m_FilePicker.SetFontScale(m_FontScale);
             std::string pickerTitle = (m_FilePicker.GetMode() == FilePicker::MODE_FILE) ? "Select Music File" : "Select Music Folder";
+            bool pickerDisabled = m_BML->IsPlaying();
+            if (pickerDisabled) ImGui::BeginDisabled();
             if (m_FilePicker.Draw(pickerTitle.c_str(), m_PickerTempPath)) {
                 if (m_FilePicker.GetMode() == FilePicker::MODE_FILE) {
                     m_Player.LoadSingleFile(m_PickerTempPath, true);
@@ -310,6 +378,7 @@ private:
                 }
                 SaveConfig();
             }
+            if (pickerDisabled) ImGui::EndDisabled();
         }
 
         if (!g_MusicPlayerOpen) return;
@@ -324,23 +393,36 @@ private:
             return;
         }
 
-        // Push transparency style colors for child elements
-        ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.20f, 0.20f, 0.25f, m_Opacity * 0.8f));
-        ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, ImVec4(0.30f, 0.30f, 0.40f, m_Opacity * 0.9f));
-        ImGui::PushStyleColor(ImGuiCol_FrameBgActive, ImVec4(0.35f, 0.35f, 0.45f, m_Opacity * 1.0f));
-        ImGui::PushStyleColor(ImGuiCol_TitleBg, ImVec4(0.18f, 0.18f, 0.22f, m_Opacity * 1.0f));
-        ImGui::PushStyleColor(ImGuiCol_TitleBgActive, ImVec4(0.25f, 0.25f, 0.35f, m_Opacity * 1.0f));
-        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.25f, 0.25f, 0.35f, m_Opacity * 0.8f));
-        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.35f, 0.35f, 0.48f, m_Opacity * 0.9f));
-        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.45f, 0.45f, 0.60f, m_Opacity * 1.0f));
-        ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.25f, 0.25f, 0.30f, m_Opacity * 0.8f));
-        ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.15f, 0.15f, 0.18f, m_Opacity * 0.7f));
+        bool uiDisabled = m_BML->IsPlaying();
+        float currentOpacity = uiDisabled ? (m_Opacity * 0.6f) : m_Opacity;
+
+        if (uiDisabled) {
+            ImGui::PushStyleVar(ImGuiStyleVar_DisabledAlpha, 0.60f); // make text/items more transparent when disabled
+        }
+
+        float textAlpha = (currentOpacity * 1.5f > 1.0f) ? 1.0f : (currentOpacity * 1.5f);
+        // Push transparency style colors for child elements and title bar text
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.95f, 0.96f, 0.98f, textAlpha));
+        ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.20f, 0.20f, 0.25f, currentOpacity * 0.8f));
+        ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, ImVec4(0.30f, 0.30f, 0.40f, currentOpacity * 0.9f));
+        ImGui::PushStyleColor(ImGuiCol_FrameBgActive, ImVec4(0.35f, 0.35f, 0.45f, currentOpacity * 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_TitleBg, ImVec4(0.18f, 0.18f, 0.22f, currentOpacity * 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_TitleBgActive, ImVec4(0.25f, 0.25f, 0.35f, currentOpacity * 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.25f, 0.25f, 0.35f, currentOpacity * 0.8f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.35f, 0.35f, 0.48f, currentOpacity * 0.9f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.45f, 0.45f, 0.60f, currentOpacity * 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.25f, 0.25f, 0.30f, currentOpacity * 0.8f));
+        ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.15f, 0.15f, 0.18f, currentOpacity * 0.7f));
 
         // Floating music player panel
         ImGui::SetNextWindowSize(ImVec2(400.0f * scale, 0), ImGuiCond_Always);
-        ImGui::SetNextWindowBgAlpha(m_Opacity);
+        ImGui::SetNextWindowBgAlpha(currentOpacity);
         if (ImGui::Begin("Music Player", &g_MusicPlayerOpen, ImGuiWindowFlags_AlwaysAutoResize)) {
             ImGui::SetWindowFontScale(m_FontScale);
+
+            if (uiDisabled) {
+                ImGui::BeginDisabled();
+            }
 
             // Track info
             ImGui::Text("Now Playing:");
@@ -419,19 +501,22 @@ private:
             ImGui::Text(" Speed:");
             ImGui::SameLine();
             ImGui::PushItemWidth(90.0f * scale);
-            float speed = m_Player.GetSpeed();
+            float speed = m_ManualSpeed;
             int speedIdx = GetSpeedIndex(speed);
             if (ComboWithFontScale("##SpeedCombo", &speedIdx, SPEED_LABELS, SPEED_COUNT, m_FontScale * 0.8f)) {
-                m_Player.SetSpeed(SPEED_VALUES[speedIdx]);
+                m_ManualSpeed = SPEED_VALUES[speedIdx];
                 SaveConfig();
             }
             ImGui::PopItemWidth();
 
             // Volume
             float volume = m_Player.GetVolume() * 100.0f;
-            ImGui::Text("Volume:");
+            if (m_RheostatMode != 0) {
+                ImGui::TextColored(ImVec4(0.4f, 1.0f, 0.4f, 1.0f), "Rheostat: %.1f m/s -> %.2fx", m_SpeedTracker.GetCurrentSpeed(), m_TargetPlaybackSpeed);
+            }
+            ImGui::Text("Vol:");
             ImGui::SameLine();
-            ImGui::PushItemWidth(-1.0f);
+            ImGui::PushItemWidth(120.0f * scale);
             if (ImGui::SliderFloat("##Volume", &volume, 0.0f, 100.0f, "%.0f%%")) {
                 m_Player.SetVolume(volume / 100.0f);
             }
@@ -439,6 +524,13 @@ private:
                 SaveConfig();
             }
             ImGui::PopItemWidth();
+
+            ImGui::SameLine();
+            bool keepPitch = m_Player.GetKeepPitch();
+            if (ImGui::Checkbox("Keep Pitch", &keepPitch)) {
+                m_Player.SetKeepPitch(keepPitch);
+                SaveConfig();
+            }
 
             ImGui::Separator();
 
@@ -477,9 +569,13 @@ private:
                 }
                 ImGui::EndChild();
             }
+            if (uiDisabled) {
+                ImGui::EndDisabled();
+                ImGui::PopStyleVar();
+            }
         }
         ImGui::End();
-        ImGui::PopStyleColor(10);
+        ImGui::PopStyleColor(11);
     }
 
     void OnRender(CK_RENDER_FLAGS flags) override {
@@ -494,11 +590,17 @@ private:
     bool m_Seeking = false;
     int m_SeekTargetMs = 0;
 
-    CKKEYBOARD m_Hotkey = CKKEY_M;
+    CKKEYBOARD m_Hotkey = CKKEY_BACKSLASH;
     float m_FontScale = 0.85f;
     float m_Opacity = 0.60f;
 
     std::atomic_bool m_Init = false;
+    float m_ManualSpeed = 1.0f;
+    float m_TargetPlaybackSpeed = 1.0f;
+    float m_LastSetSpeed = -1.0f;
+    float m_EasingRate = 0.05f;
+    int m_RheostatMode = 0;
+    BallSpeedTracker m_SpeedTracker;
 };
 
 MOD_EXPORT IMod *BMLEntry(IBML *bml) { return new BallanceMusicPlayer(bml); }

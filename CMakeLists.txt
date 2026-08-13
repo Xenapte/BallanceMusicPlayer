@@ -7,9 +7,16 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(BML REQUIRED)
 
-file(GLOB BMP_SRC src/*.cpp src/*.hpp)
-
-add_library(${PROJECT_NAME} SHARED ${BMP_SRC})
+add_library(${PROJECT_NAME} SHARED
+    src/main.cpp
+    src/miniaudio.cpp
+    src/BallSpeedTracker.cpp
+    src/BallSpeedTracker.hpp
+    src/FilePicker.hpp
+    src/MusicPlayerCore.hpp
+    src/Common.hpp
+    src/SecondaryConfig.hpp
+)
 
 target_include_directories(${PROJECT_NAME} PRIVATE
                ${BML_DIR}/../../../include

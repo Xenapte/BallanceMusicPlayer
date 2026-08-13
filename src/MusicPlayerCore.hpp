@@ -14,6 +14,7 @@ public:
     MusicPlayerCore() 
         : m_Volume(1.0f)
         , m_Speed(1.0f)
+        , m_KeepPitch(false)
         , m_Shuffle(false)
         , m_RepeatMode(0)
         , m_IsPlaying(false)
@@ -44,11 +45,19 @@ public:
     float GetVolume() const { return m_Volume; }
 
     void SetSpeed(float speed) {
-        m_Speed = std::clamp(speed, 0.25f, 4.0f);
+        m_Speed = std::clamp(speed, 0.1f, 10.0f);
         ApplySpeed();
     }
 
     float GetSpeed() const { return m_Speed; }
+
+    void SetKeepPitch(bool keep) {
+        if (m_KeepPitch == keep) return;
+        m_KeepPitch = keep;
+        ApplySpeed();
+    }
+
+    bool GetKeepPitch() const { return m_KeepPitch; }
 
     void SetShuffle(bool enable) {
         if (m_Shuffle == enable) return;
@@ -359,7 +368,8 @@ private:
 
     void ApplySpeed() {
         if (m_SoundInitialized) {
-            ma_sound_set_pitch(&m_Sound, m_Speed);
+            float pitch = m_KeepPitch ? 1.0f : m_Speed;
+            ma_sound_set_pitch(&m_Sound, pitch);
         }
     }
 
@@ -399,6 +409,7 @@ private:
 
     float m_Volume;
     float m_Speed;
+    bool m_KeepPitch;
     bool m_Shuffle;
     int m_RepeatMode;
     bool m_IsPlaying;
