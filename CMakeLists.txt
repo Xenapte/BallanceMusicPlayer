@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.20)
 
 project(BallanceMusicPlayer)
+set(PROJECT_NAME_NOPREFIX MusicPlayer)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
@@ -28,5 +29,5 @@ if (MSVC)
     )
 endif()
 
-set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME "${PROJECT_NAME}")
+set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME "${PROJECT_NAME_NOPREFIX}")
 set_target_properties(${PROJECT_NAME} PROPERTIES SUFFIX ".bmodp")
