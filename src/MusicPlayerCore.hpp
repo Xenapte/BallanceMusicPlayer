@@ -12,7 +12,7 @@
 class MusicPlayerCore {
 public:
     MusicPlayerCore() 
-        : m_Volume(0.5f)
+        : m_Volume(1.0f)
         , m_Speed(1.0f)
         , m_Shuffle(false)
         , m_RepeatMode(0)
@@ -393,7 +393,7 @@ private:
     }
 
     ma_engine m_Engine;
-    ma_sound m_Sound;
+    ma_sound m_Sound{};
     bool m_EngineInitialized;
     bool m_SoundInitialized;
 

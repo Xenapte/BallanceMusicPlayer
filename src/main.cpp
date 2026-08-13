@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <cmath>
 #include <map>
+#include <atomic>
 
 #include "Common.hpp"
 #include "SecondaryConfig.hpp"
@@ -248,6 +249,14 @@ private:
         SaveConfig();
     }
 
+    void OnPostStartMenu() override {
+        if (m_Init) return;
+        // fix for cursor glitch by delaying the player
+        m_BML->AddTimer(1024.0f, [this]() {
+            m_Init = true;
+        });
+    }
+
     void OnModifyConfig(const char *category, const char *key, IProperty *prop) override {
         if (strcmp(key, "Enabled") == 0) {
             g_MusicPlayerEnabled = prop->GetBoolean();
@@ -265,17 +274,17 @@ private:
     }
 
     void OnProcess() override {
-        if (!g_MusicPlayerEnabled) return;
-
-        InputHook* input = m_BML->GetInputManager();
+        if (!g_MusicPlayerEnabled || !m_Init) return;
 
         // Detect toggle hotkey press
-        if (m_Hotkey != static_cast<CKKEYBOARD>(0)) {
-            if (input->IsKeyPressed(m_Hotkey)) {
-                g_MusicPlayerOpen = !g_MusicPlayerOpen;
-            }
+        if (m_BML->GetInputManager()->IsKeyPressed(m_Hotkey)) {
+            g_MusicPlayerOpen = !g_MusicPlayerOpen;
         }
 
+        DrawUI();
+    }
+
+    void DrawUI() {
         m_Player.Update();
 
         // RENDER IMGUI DIRECTLY IN ONPROCESS (BMLPlus ImGui frame is active here)
@@ -488,6 +497,8 @@ private:
     CKKEYBOARD m_Hotkey = CKKEY_M;
     float m_FontScale = 0.85f;
     float m_Opacity = 0.60f;
+
+    std::atomic_bool m_Init = false;
 };
 
 MOD_EXPORT IMod *BMLEntry(IBML *bml) { return new BallanceMusicPlayer(bml); }
