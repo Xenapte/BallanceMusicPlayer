@@ -8,6 +8,7 @@
 #include <filesystem>
 #include <algorithm>
 #include <cmath>
+#include <map>
 
 #include "Common.hpp"
 #include "SecondaryConfig.hpp"
@@ -157,7 +158,7 @@ private:
         GetConfig()->GetProperty("Aesthetics", "Opacity")->SetFloat(m_Opacity);
 
         // Save internal states to secondary config
-        std::unordered_map<std::string, std::string> internalCfg;
+        std::map<std::string, std::string> internalCfg;
         internalCfg["Volume"] = std::to_string(m_Player.GetVolume());
         internalCfg["Shuffle"] = m_Player.GetShuffle() ? "true" : "false";
         internalCfg["RepeatMode"] = std::to_string(m_Player.GetRepeatMode());
@@ -248,19 +249,19 @@ private:
     }
 
     void OnModifyConfig(const char *category, const char *key, IProperty *prop) override {
-		if (strcmp(key, "Enabled") == 0) {
-			g_MusicPlayerEnabled = prop->GetBoolean();
-		} else if (strcmp(key, "WindowToggleHotkey") == 0) {
-			if (prop->GetType() == IProperty::KEY) {
-				m_Hotkey = prop->GetKey();
-			} else if (prop->GetType() == IProperty::INTEGER) {
-				m_Hotkey = static_cast<CKKEYBOARD>(prop->GetInteger());
-			}
-		} else if (strcmp(key, "FontScale") == 0) {
-			m_FontScale = prop->GetFloat();
-		} else if (strcmp(key, "Opacity") == 0) {
-			m_Opacity = prop->GetFloat();
-		}
+        if (strcmp(key, "Enabled") == 0) {
+            g_MusicPlayerEnabled = prop->GetBoolean();
+        } else if (strcmp(key, "WindowToggleHotkey") == 0) {
+            if (prop->GetType() == IProperty::KEY) {
+                m_Hotkey = prop->GetKey();
+            } else if (prop->GetType() == IProperty::INTEGER) {
+                m_Hotkey = static_cast<CKKEYBOARD>(prop->GetInteger());
+            }
+        } else if (strcmp(key, "FontScale") == 0) {
+            m_FontScale = prop->GetFloat();
+        } else if (strcmp(key, "Opacity") == 0) {
+            m_Opacity = prop->GetFloat();
+        }
     }
 
     void OnProcess() override {

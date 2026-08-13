@@ -1,13 +1,13 @@
 #pragma once
 #include <string>
-#include <unordered_map>
+#include <map>
 #include <fstream>
 #include <filesystem>
 #include "Common.hpp"
 
 class SecondaryConfig {
 public:
-    static void Save(const std::string& filepath, const std::unordered_map<std::string, std::string>& data) {
+    static void Save(const std::string& filepath, const std::map<std::string, std::string>& data) {
         std::ofstream file(Utf8ToPath(filepath));
         if (!file.is_open()) return;
         for (const auto& [key, val] : data) {
@@ -15,8 +15,8 @@ public:
         }
     }
 
-    static std::unordered_map<std::string, std::string> Load(const std::string& filepath) {
-        std::unordered_map<std::string, std::string> data;
+    static std::map<std::string, std::string> Load(const std::string& filepath) {
+        std::map<std::string, std::string> data;
         std::ifstream file(Utf8ToPath(filepath));
         if (!file.is_open()) return data;
         std::string line;
