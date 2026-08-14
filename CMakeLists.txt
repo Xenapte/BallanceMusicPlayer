@@ -16,6 +16,8 @@ add_library(${PROJECT_NAME} SHARED
     src/MusicPlayerCore.hpp
     src/Common.hpp
     src/SecondaryConfig.hpp
+    src/MusicPlayerUI.cpp
+    src/MusicPlayerUI.hpp
 )
 
 target_include_directories(${PROJECT_NAME} PRIVATE
