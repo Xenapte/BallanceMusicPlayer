@@ -9,6 +9,7 @@ void BallSpeedTracker::SetConfigValues(RheostatMode mode, float testIntervalMs, 
     m_SpeedTestInterval = std::max(10.0f, testIntervalMs); // clamp interval to at least 10ms
     m_RefSpeed = refSpeed;
     m_Slope = slope;
+    m_MaxDistance = m_SpeedTestInterval; // 1000 m/s limit => 1000 * (interval / 1000) = interval meters
 }
 
 void BallSpeedTracker::Update() {
@@ -32,6 +33,15 @@ void BallSpeedTracker::Update() {
         return;
     }
 
+    float currentTime = m_BML->GetTimeManager()->GetTime();
+
+    if (m_Initialized) {
+        float dt = currentTime - m_LastTimestamp;
+        if (dt < m_SpeedTestInterval) {
+            return;
+        }
+    }
+
     if (!m_CurrentLevelArray) {
         m_CurrentLevelArray = m_BML->GetArrayByName("CurrentLevel");
         if (!m_CurrentLevelArray) return;
@@ -48,7 +58,6 @@ void BallSpeedTracker::Update() {
 
     VxVector currentPos;
     ball->GetPosition(&currentPos);
-    float currentTime = m_BML->GetTimeManager()->GetTime();
 
     if (!m_Initialized) {
         m_LastPosition = currentPos;
@@ -60,17 +69,16 @@ void BallSpeedTracker::Update() {
     }
 
     float dt = currentTime - m_LastTimestamp;
-    if (dt >= m_SpeedTestInterval) {
-        float distance = Magnitude(currentPos - m_LastPosition);
-        
-        // If movement exceeds 100 units (meters) between updates, treat it as an outlier (e.g. level reset)
-        if (distance > 100.0f) {
-            m_LastPosition = currentPos;
-            m_LastTimestamp = currentTime;
-            return;
-        }
+    float distance = Magnitude(currentPos - m_LastPosition);
+    
+    // If movement exceeds the threshold (corresponding to 1000 m/s), treat it as an outlier (e.g. level reset)
+    if (distance > m_MaxDistance) {
+        m_LastPosition = currentPos;
+        m_LastTimestamp = currentTime;
+        return;
+    }
 
-        m_CurrentSpeed = (distance / dt) * 1000.0f;
+    m_CurrentSpeed = (distance / dt) * 1000.0f;
         
         if (m_Mode == RHEOSTAT_SLIDING_WINDOW) {
             float weight = m_RefSpeed;
@@ -82,9 +90,8 @@ void BallSpeedTracker::Update() {
             }
         }
 
-        m_LastPosition = currentPos;
-        m_LastTimestamp = currentTime;
-    }
+    m_LastPosition = currentPos;
+    m_LastTimestamp = currentTime;
 }
 
 float BallSpeedTracker::GetTargetPlaybackSpeed(float manualSpeed) {

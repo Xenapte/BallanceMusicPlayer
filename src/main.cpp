@@ -146,7 +146,7 @@ public:
 
     const char *GetID() override { return "MusicPlayer"; }
     const char *GetVersion() override { return "0.2.0"; }
-    const char* GetName() override { return "Music Player"; }
+    const char *GetName() override { return "Music Player"; }
     const char *GetAuthor() override { return "BallanceBug"; }
     const char *GetDescription() override { return "Standalone Music player mod based on ImGui and Miniaudio."; }
     DECLARE_BML_VERSION;
@@ -576,6 +576,7 @@ private:
 
             // Playlist Selection list
             const auto& playlist = m_Player.GetPlaylist();
+            const auto& playlistNames = m_Player.GetPlaylistNames();
             if (!playlist.empty()) {
                 ImGui::Separator();
                 ImGui::Text("Playlist (%d tracks):", (int)playlist.size());
@@ -584,7 +585,7 @@ private:
                     
                     int activeIdx = m_Player.GetCurrentPlaylistIndex();
                     for (int i = 0; i < (int)playlist.size(); ++i) {
-                        std::string name = std::filesystem::path(Utf8ToPath(playlist[i])).filename().string();
+                        const std::string& name = playlistNames[i];
                         bool isCurrent = (i == activeIdx);
                         if (isCurrent) {
                             ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.4f, 0.8f, 1.0f, 1.0f));
@@ -611,10 +612,6 @@ private:
         }
         ImGui::End();
         ImGui::PopStyleColor(11);
-    }
-
-    void OnRender(CK_RENDER_FLAGS flags) override {
-        // ImGui draw calls must occur in OnProcess() during BML's active frame
     }
 
     MusicPlayerCore m_Player;

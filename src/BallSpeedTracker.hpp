@@ -42,4 +42,5 @@ private:
     float m_RefSpeed = 30.0f;
     float m_Slope = 0.02f;
     float m_LastPlaybackSpeed = 1.0f;
+    float m_MaxDistance = 100.0f;
 };

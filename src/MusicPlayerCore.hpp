@@ -101,6 +101,10 @@ public:
         return m_Playlist;
     }
 
+    const std::vector<std::string>& GetPlaylistNames() const {
+        return m_PlaylistNames;
+    }
+
     int GetCurrentPlaylistIndex() const {
         if (m_CurrentPlaylistIndex >= 0 && m_CurrentPlaylistIndex < (int)m_Playlist.size()) {
             return m_ShuffledPlaylist[m_CurrentPlaylistIndex];
@@ -117,6 +121,7 @@ public:
         m_CurrentPlaylistIndex = 0;
         m_IsDirMode = false;
         m_CurrentDir = "";
+        UpdatePlaylistNames();
 
         if (autoplay) {
             PlayIndex(0);
@@ -148,6 +153,8 @@ public:
                 std::sort(m_Playlist.begin(), m_Playlist.end());
             }
         } catch (...) {}
+
+        UpdatePlaylistNames();
 
         if (m_Playlist.empty()) {
             m_CurrentPlaylistIndex = -1;
@@ -415,7 +422,16 @@ private:
     bool m_IsPlaying;
     bool m_IsPaused;
 
+    void UpdatePlaylistNames() {
+        m_PlaylistNames.clear();
+        m_PlaylistNames.reserve(m_Playlist.size());
+        for (const auto& path : m_Playlist) {
+            m_PlaylistNames.push_back(std::filesystem::path(Utf8ToPath(path)).filename().string());
+        }
+    }
+
     std::vector<std::string> m_Playlist;
+    std::vector<std::string> m_PlaylistNames;
     std::vector<int> m_ShuffledPlaylist;
     int m_CurrentPlaylistIndex;
     std::string m_CurrentDir;
