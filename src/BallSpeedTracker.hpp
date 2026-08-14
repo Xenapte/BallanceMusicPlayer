@@ -4,6 +4,15 @@
 #include <BML/IConfig.h>
 #include <BML/Defines.h>
 
+enum RheostatMode {
+    RHEOSTAT_DISABLED = 0,
+    RHEOSTAT_LINEAR = 1,
+    RHEOSTAT_SLIDING_WINDOW = 2,
+    RHEOSTAT_SQUARE_ROOT = 3,
+    RHEOSTAT_LOGARITHMIC = 4,
+    RHEOSTAT_SQUARED = 5
+};
+
 class BallSpeedTracker {
 public:
     explicit BallSpeedTracker(IBML* bml);
@@ -12,7 +21,7 @@ public:
 
     float GetTargetPlaybackSpeed(float manualSpeed);
 
-    void SetConfigValues(int mode, float testIntervalMs, float refSpeed, float slope);
+    void SetConfigValues(RheostatMode mode, float testIntervalMs, float refSpeed, float slope);
 
     float GetCurrentSpeed() const { return m_CurrentSpeed; }
 
@@ -28,7 +37,7 @@ private:
     bool m_Initialized = false;
 
     // Configuration values
-    int m_Mode = 0;
+    RheostatMode m_Mode = RHEOSTAT_DISABLED;
     float m_SpeedTestInterval = 100.0f; // ms
     float m_RefSpeed = 30.0f;
     float m_Slope = 0.02f;

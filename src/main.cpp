@@ -140,7 +140,7 @@ public:
     explicit BallanceMusicPlayer(IBML *bml) : IMod(bml), m_SpeedTracker(bml) {}
 
     const char *GetID() override { return "MusicPlayer"; }
-    const char *GetVersion() override { return "0.1.1"; }
+    const char *GetVersion() override { return "0.2.0"; }
     const char* GetName() override { return "Music Player"; }
     const char *GetAuthor() override { return "BallanceBug"; }
     const char *GetDescription() override { return "Standalone Music player mod based on ImGui and Miniaudio."; }
@@ -210,9 +210,12 @@ private:
         GetConfig()->SetCategoryComment("SlidingRheostat", "Easter egg: dynamic playback speed based on ball speed.");
         
         IProperty* pRheostatMode = GetConfig()->GetProperty("SlidingRheostat", "Mode");
-        pRheostatMode->SetComment("0 = Disabled, 1 = Linear model, 2 = Sliding window model (speed auto adjust based on acceleration/deceleration relative to historical average)");
-        pRheostatMode->SetDefaultInteger(0);
-        m_RheostatMode = pRheostatMode->GetInteger();
+        char commentBuf[256];
+        snprintf(commentBuf, sizeof(commentBuf), "%d = Disabled, %d = Linear model, %d = Sliding window model, %d = Square root model, %d = Logarithmic model, %d = Squared model (maximum sensitivity)",
+                 RHEOSTAT_DISABLED, RHEOSTAT_LINEAR, RHEOSTAT_SLIDING_WINDOW, RHEOSTAT_SQUARE_ROOT, RHEOSTAT_LOGARITHMIC, RHEOSTAT_SQUARED);
+        pRheostatMode->SetComment(commentBuf);
+        pRheostatMode->SetDefaultInteger(RHEOSTAT_DISABLED);
+        m_RheostatMode = static_cast<RheostatMode>(pRheostatMode->GetInteger());
 
         IProperty* pTestInterval = GetConfig()->GetProperty("SlidingRheostat", "SpeedTestInterval");
         pTestInterval->SetComment("Minimum update interval for speed calculation (milliseconds)");
@@ -221,7 +224,7 @@ private:
 
         IProperty* pEasingRate = GetConfig()->GetProperty("SlidingRheostat", "EasingRate");
         pEasingRate->SetComment("Easing rate for speed changes (0 = instant change, 1 = maximum easing so speed never changes)");
-        pEasingRate->SetDefaultFloat(0.9f);
+        pEasingRate->SetDefaultFloat(0.92f);
         m_EasingRate = std::clamp(pEasingRate->GetFloat(), 0.0f, 1.0f);
 
         IProperty* pParam1 = GetConfig()->GetProperty("SlidingRheostat", "ExtraParameter1");
@@ -297,7 +300,7 @@ private:
 
     void OnModifyConfig(const char *category, const char *key, IProperty *prop) override {
         if (strcmp(category, "SlidingRheostat") == 0) {
-            m_RheostatMode = GetConfig()->GetProperty("SlidingRheostat", "Mode")->GetInteger();
+            m_RheostatMode = static_cast<RheostatMode>(GetConfig()->GetProperty("SlidingRheostat", "Mode")->GetInteger());
             float testInterval = GetConfig()->GetProperty("SlidingRheostat", "SpeedTestInterval")->GetFloat();
             m_EasingRate = std::clamp(GetConfig()->GetProperty("SlidingRheostat", "EasingRate")->GetFloat(), 0.0f, 1.0f);
             float param1 = GetConfig()->GetProperty("SlidingRheostat", "ExtraParameter1")->GetFloat();
@@ -329,7 +332,7 @@ private:
         }
 
         float targetSpeed = m_ManualSpeed;
-        if (m_RheostatMode != 0) {
+        if (m_RheostatMode != RHEOSTAT_DISABLED) {
             m_SpeedTracker.Update();
             float rawTarget = m_SpeedTracker.GetTargetPlaybackSpeed(m_ManualSpeed);
             // EasingRate of 0 means k = 1 (instant), EasingRate of 1 means k = 0 (never changes)
@@ -511,7 +514,7 @@ private:
 
             // Volume
             float volume = m_Player.GetVolume() * 100.0f;
-            if (m_RheostatMode != 0) {
+            if (m_RheostatMode != RHEOSTAT_DISABLED) {
                 ImGui::TextColored(ImVec4(0.4f, 1.0f, 0.4f, 1.0f), "Rheostat: %.1f m/s -> %.2fx", m_SpeedTracker.GetCurrentSpeed(), m_TargetPlaybackSpeed);
             }
             ImGui::Text("Vol:");
@@ -599,7 +602,7 @@ private:
     float m_TargetPlaybackSpeed = 1.0f;
     float m_LastSetSpeed = -1.0f;
     float m_EasingRate = 0.05f;
-    int m_RheostatMode = 0;
+    RheostatMode m_RheostatMode = RHEOSTAT_DISABLED;
     BallSpeedTracker m_SpeedTracker;
 };
 
