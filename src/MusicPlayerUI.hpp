@@ -17,10 +17,11 @@ public:
 
     void Draw(IBML* bml, MusicPlayerCore& player, BallSpeedTracker& speedTracker,
               float& manualSpeed, float targetPlaybackSpeed, RheostatMode rheostatMode,
-              float fontScale, float opacity, bool blockMouseIngame,
+              float fontScale, float opacity, bool blockKeyboardIngame, bool blockMouseIngame,
               std::function<void()> saveConfigCallback);
 
     bool IsHovered() const { return m_WindowHovered; }
+    bool IsFilePickerOpen() const { return m_FilePicker.IsOpen(); }
 
 private:
     FilePicker m_FilePicker;

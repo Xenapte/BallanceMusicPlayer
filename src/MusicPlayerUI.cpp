@@ -101,11 +101,24 @@ MusicPlayerUI::MusicPlayerUI() {}
 
 void MusicPlayerUI::Draw(IBML* bml, MusicPlayerCore& player, BallSpeedTracker& speedTracker,
                          float& manualSpeed, float targetPlaybackSpeed, RheostatMode rheostatMode,
-                         float fontScale, float opacity, bool blockMouseIngame,
+                         float fontScale, float opacity, bool blockKeyboardIngame, bool blockMouseIngame,
                          std::function<void()> saveConfigCallback) {
     player.Update();
 
     Bui::ImGuiContextScope scope;
+
+    bool isPlaying = bml->IsPlaying();
+    bool keyboardBlocked = blockKeyboardIngame && isPlaying;
+
+    ImGuiIO& io = ImGui::GetIO();
+    if (keyboardBlocked) {
+        io.ConfigFlags &= ~ImGuiConfigFlags_NavEnableKeyboard;
+        io.ConfigFlags &= ~ImGuiConfigFlags_NavEnableGamepad;
+        io.ClearInputKeys();
+    } else {
+        io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+        io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
+    }
 
     if (m_FirstRender) {
         ApplyDarkTheme();
@@ -144,7 +157,6 @@ void MusicPlayerUI::Draw(IBML* bml, MusicPlayerCore& player, BallSpeedTracker& s
         return;
     }
 
-    bool isPlaying = bml->IsPlaying();
     bool mouseBlocked = blockMouseIngame && isPlaying;
     bool useDynamicTrans = isPlaying && !m_WindowHovered;
     float currentOpacity = useDynamicTrans ? (opacity * 0.6f) : opacity;

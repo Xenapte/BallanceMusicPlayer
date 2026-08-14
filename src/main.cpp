@@ -2,6 +2,7 @@
 #include <BML/Bui.h>
 #include <BML/IConfig.h>
 #include <BML/Defines.h>
+#include <BML/InputHook.h>
 
 #include <string>
 #include <vector>
@@ -51,7 +52,7 @@ public:
         , m_BlockMouseIngame(false) {}
 
     const char *GetID() override { return "MusicPlayer"; }
-    const char *GetVersion() override { return "0.2.0"; }
+    const char *GetVersion() override { return "0.2.1"; }
     const char *GetName() override { return "Music Player"; }
     const char *GetAuthor() override { return "BallanceBug"; }
     const char *GetDescription() override { return "Standalone Music player mod based on ImGui and Miniaudio."; }
@@ -181,13 +182,7 @@ private:
         IProperty* pRheostatMode = GetConfig()->GetProperty("SlidingRheostat", "Mode");
         char commentBuf[512];
         snprintf(commentBuf, sizeof(commentBuf),
-                 "Dynamic playback speed mode:\n"
-                 "%d = Disabled\n"
-                 "%d = Linear: rate = 1.0 + (speed - RefSpeed) * Slope\n"
-                 "%d = Sliding Window: rate = 1.0 + (speed - AvgSpeed) * Slope\n"
-                 "%d = Square Root: rate = 1.0 + (sqrt(speed) - sqrt(RefSpeed)) * Slope * 2*sqrt(RefSpeed)\n"
-                 "%d = Logarithmic: rate = 1.0 + (ln(speed+1) - ln(RefSpeed+1)) * Slope * (RefSpeed+1)\n"
-                 "%d = Squared: rate = 1.0 + (speed^2 - RefSpeed^2) * Slope / (2*RefSpeed)",
+                 "Dynamic playback speed mode: %d = Disabled, %d = Linear, %d = Sliding Window, %d = Square Root, %d = Logarithmic, %d = Squared",
                  RHEOSTAT_DISABLED, RHEOSTAT_LINEAR, RHEOSTAT_SLIDING_WINDOW,
                  RHEOSTAT_SQUARE_ROOT, RHEOSTAT_LOGARITHMIC, RHEOSTAT_SQUARED);
         pRheostatMode->SetComment(commentBuf);
@@ -282,7 +277,20 @@ private:
             m_LastSetSpeed = targetSpeed;
         }
 
-        m_UI.Draw(m_BML, m_Player, m_SpeedTracker, m_ManualSpeed, m_TargetPlaybackSpeed, m_RheostatMode, m_FontScale, m_Opacity, m_BlockMouseIngame, [this]() { SaveConfig(); });
+        m_UI.Draw(m_BML, m_Player, m_SpeedTracker, m_ManualSpeed, m_TargetPlaybackSpeed, m_RheostatMode, m_FontScale, m_Opacity, m_BlockKeyboardIngame, m_BlockMouseIngame, [this]() { SaveConfig(); });
+
+        // Fix cursor leak/unsync bug when transitioning menu states
+        if (!m_BML->IsPlaying()) {
+            if (!m_BML->GetInputManager()->GetCursorVisibility()) {
+                m_BML->GetInputManager()->ShowCursor(TRUE);
+            }
+        } else {
+            // If in-game, ensure the cursor is hidden unless hovering over the open, unblocked player UI
+            bool shouldShowCursor = g_MusicPlayerOpen && !m_BlockMouseIngame && (m_UI.IsHovered() || m_UI.IsFilePickerOpen());
+            if (!shouldShowCursor && m_BML->GetInputManager()->GetCursorVisibility()) {
+                m_BML->GetInputManager()->ShowCursor(FALSE);
+            }
+        }
     }
 
     void OnRender(CK_RENDER_FLAGS flags) override {
