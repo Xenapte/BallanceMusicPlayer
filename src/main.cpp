@@ -137,7 +137,12 @@ static bool ComboWithFontScale(const char* label, int* current_item, const char*
 
 class BallanceMusicPlayer final : public IMod {
 public:
-    explicit BallanceMusicPlayer(IBML *bml) : IMod(bml), m_SpeedTracker(bml) {}
+    explicit BallanceMusicPlayer(IBML *bml)
+        : IMod(bml)
+        , m_SpeedTracker(bml)
+        , m_BlockKeyboardIngame(true)
+        , m_BlockMouseIngame(false)
+        , m_WindowHovered(false) {}
 
     const char *GetID() override { return "MusicPlayer"; }
     const char *GetVersion() override { return "0.2.0"; }
@@ -205,6 +210,16 @@ private:
         pOpacity->SetComment("Opacity (background alpha) of the music player window");
         pOpacity->SetDefaultFloat(0.80f);
         m_Opacity = pOpacity->GetFloat();
+
+        IProperty* pBlockKeyboard = GetConfig()->GetProperty("Core", "BlockKeyboardIngame");
+        pBlockKeyboard->SetComment("Block game keyboard input when the music player UI is open in-game");
+        pBlockKeyboard->SetDefaultBoolean(true);
+        m_BlockKeyboardIngame = pBlockKeyboard->GetBoolean();
+
+        IProperty* pBlockMouse = GetConfig()->GetProperty("Core", "BlockMouseIngame");
+        pBlockMouse->SetComment("Block game mouse input (camera/ball rotation) when the music player UI is open in-game");
+        pBlockMouse->SetDefaultBoolean(false);
+        m_BlockMouseIngame = pBlockMouse->GetBoolean();
 
         // Register SlidingRheostat config category
         GetConfig()->SetCategoryComment("SlidingRheostat", "Easter egg: dynamic playback speed based on ball speed.");
@@ -309,6 +324,10 @@ private:
         } else {
             if (strcmp(key, "Enabled") == 0) {
                 g_MusicPlayerEnabled = prop->GetBoolean();
+            } else if (strcmp(key, "BlockKeyboardIngame") == 0) {
+                m_BlockKeyboardIngame = prop->GetBoolean();
+            } else if (strcmp(key, "BlockMouseIngame") == 0) {
+                m_BlockMouseIngame = prop->GetBoolean();
             } else if (strcmp(key, "WindowToggleHotkey") == 0) {
                 if (prop->GetType() == IProperty::KEY) {
                     m_Hotkey = prop->GetKey();
@@ -327,8 +346,11 @@ private:
         if (!g_MusicPlayerEnabled || !m_Init) return;
 
         // Detect toggle hotkey press
-        if (m_BML->GetInputManager()->oIsKeyPressed(m_Hotkey)) {
-            g_MusicPlayerOpen = !g_MusicPlayerOpen;
+        bool keyboardBlocked = m_BlockKeyboardIngame && m_BML->IsPlaying();
+        if (!keyboardBlocked) {
+            if (m_BML->GetInputManager()->oIsKeyPressed(m_Hotkey)) {
+                g_MusicPlayerOpen = !g_MusicPlayerOpen;
+            }
         }
 
         float targetSpeed = m_ManualSpeed;
@@ -371,7 +393,7 @@ private:
         if (m_FilePicker.IsOpen()) {
             m_FilePicker.SetFontScale(m_FontScale);
             std::string pickerTitle = (m_FilePicker.GetMode() == FilePicker::MODE_FILE) ? "Select Music File" : "Select Music Folder";
-            bool pickerDisabled = m_BML->IsPlaying();
+            bool pickerDisabled = m_BlockMouseIngame && m_BML->IsPlaying();
             if (pickerDisabled) ImGui::BeginDisabled();
             if (m_FilePicker.Draw(pickerTitle.c_str(), m_PickerTempPath)) {
                 if (m_FilePicker.GetMode() == FilePicker::MODE_FILE) {
@@ -396,10 +418,14 @@ private:
             return;
         }
 
-        bool uiDisabled = m_BML->IsPlaying();
-        float currentOpacity = uiDisabled ? (m_Opacity * 0.6f) : m_Opacity;
+        bool isPlaying = m_BML->IsPlaying();
+        bool mouseBlocked = m_BlockMouseIngame && isPlaying;
+        bool useDynamicTrans = isPlaying && !m_WindowHovered;
+        float currentOpacity = useDynamicTrans ? (m_Opacity * 0.6f) : m_Opacity;
 
-        if (uiDisabled) {
+        if (useDynamicTrans) {
+            ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.50f); // make widgets translucent when not hovered during gameplay
+        } else if (mouseBlocked) {
             ImGui::PushStyleVar(ImGuiStyleVar_DisabledAlpha, 0.60f); // make text/items more transparent when disabled
         }
 
@@ -423,9 +449,11 @@ private:
         if (ImGui::Begin("Music Player", &g_MusicPlayerOpen, ImGuiWindowFlags_AlwaysAutoResize)) {
             ImGui::SetWindowFontScale(m_FontScale);
 
-            if (uiDisabled) {
+            if (mouseBlocked) {
                 ImGui::BeginDisabled();
             }
+
+
 
             // Track info
             ImGui::Text("Now Playing:");
@@ -572,8 +600,12 @@ private:
                 }
                 ImGui::EndChild();
             }
-            if (uiDisabled) {
+            m_WindowHovered = ImGui::IsWindowHovered(ImGuiHoveredFlags_RootAndChildWindows);
+
+            if (mouseBlocked) {
                 ImGui::EndDisabled();
+            }
+            if (useDynamicTrans || mouseBlocked) {
                 ImGui::PopStyleVar();
             }
         }
@@ -604,6 +636,10 @@ private:
     float m_EasingRate = 0.05f;
     RheostatMode m_RheostatMode = RHEOSTAT_DISABLED;
     BallSpeedTracker m_SpeedTracker;
+
+    bool m_BlockKeyboardIngame = true;
+    bool m_BlockMouseIngame = false;
+    bool m_WindowHovered = false;
 };
 
 MOD_EXPORT IMod *BMLEntry(IBML *bml) { return new BallanceMusicPlayer(bml); }
