@@ -324,7 +324,7 @@ void MusicPlayerUI::Draw(IBML* bml, MusicPlayerCore& player, BallSpeedTracker& s
                     if (isCurrent) {
                         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.4f, 0.8f, 1.0f, 1.0f));
                     }
-                    if (ImGui::Selectable(name.c_str(), isCurrent)) {
+                    if (ImGui::Selectable(name.c_str(), isCurrent, 0, ImVec2(ImGui::GetContentRegionAvail().x, 0))) {
                         player.PlaySequentialIndex(i);
                         saveConfigCallback();
                     }

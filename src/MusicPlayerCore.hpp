@@ -144,7 +144,7 @@ public:
                     if (entry.is_regular_file()) {
                         std::string ext = entry.path().extension().string();
                         std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
-                        if (ext == ".mp3" || ext == ".wav" || ext == ".wma" || ext == ".mid" || ext == ".midi") {
+                        if (IsSupportedAudioExtension(ext)) {
                             m_Playlist.push_back(PathToUtf8(entry.path()));
                         }
                     }

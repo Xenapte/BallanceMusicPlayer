@@ -1,6 +1,7 @@
 #pragma once
 #include <string>
 #include <filesystem>
+#include <set>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -42,4 +43,12 @@ inline std::string PathToUtf8(const std::filesystem::path& path) {
 inline std::filesystem::path Utf8ToPath(const std::string& utf8) {
     return std::filesystem::path(reinterpret_cast<const char8_t*>(utf8.data()), 
                                  reinterpret_cast<const char8_t*>(utf8.data() + utf8.size()));
+}
+
+// Check if file extension is a supported audio format
+inline bool IsSupportedAudioExtension(const std::string& ext) {
+    static const std::set<std::string> supported = {
+        ".mp3", ".wav", ".ogg", ".flac"
+    };
+    return supported.contains(ext);
 }

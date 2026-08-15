@@ -115,7 +115,7 @@ public:
 
                     std::string label = "[Folder] " + dirName;
                     bool isSelected = (m_SelectedPath == dir);
-                    if (ImGui::Selectable(label.c_str(), isSelected, ImGuiSelectableFlags_AllowDoubleClick)) {
+                    if (ImGui::Selectable(label.c_str(), isSelected, ImGuiSelectableFlags_AllowDoubleClick, ImVec2(ImGui::GetContentRegionAvail().x, 0))) {
                         m_SelectedPath = dir;
                         if (ImGui::IsMouseDoubleClicked(0)) {
                             m_CurrentPath = dir;
@@ -138,7 +138,7 @@ public:
 
                     std::string label = "[File] " + fileName;
                     bool isSelected = (m_SelectedPath == file);
-                    if (ImGui::Selectable(label.c_str(), isSelected, ImGuiSelectableFlags_AllowDoubleClick)) {
+                    if (ImGui::Selectable(label.c_str(), isSelected, ImGuiSelectableFlags_AllowDoubleClick, ImVec2(ImGui::GetContentRegionAvail().x, 0))) {
                         m_SelectedPath = file;
                         if (ImGui::IsMouseDoubleClicked(0) && m_Mode == MODE_FILE) {
                             outPath = PathToUtf8(m_SelectedPath);
@@ -215,7 +215,7 @@ private:
                     } else if (entry.is_regular_file()) {
                         std::string ext = entry.path().extension().string();
                         std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
-                        if (ext == ".mp3" || ext == ".wav" || ext == ".wma" || ext == ".mid" || ext == ".midi") {
+                        if (IsSupportedAudioExtension(ext)) {
                             m_Files.push_back(entry.path());
                         }
                     }
