@@ -52,7 +52,7 @@ public:
         , m_BlockMouseIngame(false) {}
 
     const char *GetID() override { return "MusicPlayer"; }
-    const char *GetVersion() override { return "0.2.1"; }
+    const char *GetVersion() override { return "0.2.2"; }
     const char *GetName() override { return "Music Player"; }
     const char *GetAuthor() override { return "BallanceBug"; }
     const char *GetDescription() override { return "Standalone Music player mod based on ImGui and Miniaudio."; }
@@ -196,8 +196,9 @@ private:
 
         IProperty* pEasingRate = GetConfig()->GetProperty("SlidingRheostat", "EasingRate");
         pEasingRate->SetComment("Easing rate for speed changes (0 = instant change, 1 = maximum easing so speed never changes)");
-        pEasingRate->SetDefaultFloat(0.05f);
+        pEasingRate->SetDefaultFloat(0.90f);
         m_EasingRate = std::clamp(pEasingRate->GetFloat(), 0.0f, 1.0f);
+        m_EasingCoefficient = 240.0f * (1.0f - m_EasingRate);
 
         IProperty* pParam1 = GetConfig()->GetProperty("SlidingRheostat", "ExtraParameter1");
         pParam1->SetComment("For linear model: reference/default speed of the ball (units/second, default 25.0). For sliding window model: history average window size/weight (default 15.0)");
@@ -223,6 +224,7 @@ private:
             m_RheostatMode = static_cast<RheostatMode>(GetConfig()->GetProperty("SlidingRheostat", "Mode")->GetInteger());
             float testInterval = GetConfig()->GetProperty("SlidingRheostat", "SpeedTestInterval")->GetFloat();
             m_EasingRate = std::clamp(GetConfig()->GetProperty("SlidingRheostat", "EasingRate")->GetFloat(), 0.0f, 1.0f);
+            m_EasingCoefficient = 240.0f * (1.0f - m_EasingRate);
             float param1 = GetConfig()->GetProperty("SlidingRheostat", "ExtraParameter1")->GetFloat();
             float param2 = GetConfig()->GetProperty("SlidingRheostat", "ExtraParameter2")->GetFloat();
             m_SpeedTracker.SetConfigValues(m_RheostatMode, testInterval, param1, param2);
@@ -262,8 +264,15 @@ private:
         if (m_RheostatMode != RHEOSTAT_DISABLED) {
             m_SpeedTracker.Update();
             float rawTarget = m_SpeedTracker.GetTargetPlaybackSpeed(m_ManualSpeed);
-            // EasingRate of 0 means k = 1 (instant), EasingRate of 1 means k = 0 (never changes)
-            float k = 1.0f - m_EasingRate;
+            
+            // Get delta time in seconds (GetLastDeltaTime returns milliseconds)
+            float dt = m_BML->GetTimeManager()->GetLastDeltaTime() / 1000.0f;
+            if (dt < 0.0f) dt = 0.0f;
+
+            // Frame-rate independent linear interpolation (first-order approximation of exponential decay)
+            float k = m_EasingCoefficient * dt;
+            if (k > 1.0f) k = 1.0f;
+
             m_TargetPlaybackSpeed = m_TargetPlaybackSpeed + k * (rawTarget - m_TargetPlaybackSpeed);
             targetSpeed = m_TargetPlaybackSpeed;
         } else {
@@ -308,7 +317,8 @@ private:
     float m_ManualSpeed = 1.0f;
     float m_TargetPlaybackSpeed = 1.0f;
     float m_LastSetSpeed = -1.0f;
-    float m_EasingRate = 0.05f;
+    float m_EasingRate = 0.0f;
+    float m_EasingCoefficient = 0.0f;
     RheostatMode m_RheostatMode = RHEOSTAT_DISABLED;
     BallSpeedTracker m_SpeedTracker;
 
