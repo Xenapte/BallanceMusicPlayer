@@ -52,7 +52,7 @@ public:
         , m_BlockMouseIngame(false) {}
 
     const char *GetID() override { return "MusicPlayer"; }
-    const char *GetVersion() override { return "0.2.2"; }
+    const char *GetVersion() override { return "0.2.3"; }
     const char *GetName() override { return "Music Player"; }
     const char *GetAuthor() override { return "BallanceBug"; }
     const char *GetDescription() override { return "Standalone Music player mod based on ImGui and Miniaudio."; }

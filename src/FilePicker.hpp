@@ -105,7 +105,7 @@ public:
 
                 // Directories list
                 for (const auto& dir : m_Directories) {
-                    std::string dirName = dir.filename().string();
+                    std::string dirName = PathToUtf8(dir.filename());
                     std::string dirLower = dirName;
                     std::transform(dirLower.begin(), dirLower.end(), dirLower.begin(), ::tolower);
 
@@ -128,7 +128,7 @@ public:
 
                 // Files list
                 for (const auto& file : m_Files) {
-                    std::string fileName = file.filename().string();
+                    std::string fileName = PathToUtf8(file.filename());
                     std::string fileLower = fileName;
                     std::transform(fileLower.begin(), fileLower.end(), fileLower.begin(), ::tolower);
 
@@ -193,7 +193,7 @@ public:
 
             ImGui::SameLine();
             if (!m_SelectedPath.empty()) {
-                ImGui::TextColored(ImVec4(0.3f, 0.8f, 0.3f, 1.0f), "Selected: %s", m_SelectedPath.filename().string().c_str());
+                ImGui::TextColored(ImVec4(0.3f, 0.8f, 0.3f, 1.0f), "Selected: %s", PathToUtf8(m_SelectedPath.filename()).c_str());
             } else {
                 ImGui::Text("No Selection");
             }

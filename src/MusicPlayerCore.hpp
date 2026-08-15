@@ -90,7 +90,7 @@ public:
     std::string GetCurrentSongName() const {
         std::string path = GetCurrentSongPath();
         if (path.empty()) return "No Song Loaded";
-        return std::filesystem::path(Utf8ToPath(path)).filename().string();
+        return PathToUtf8(std::filesystem::path(Utf8ToPath(path)).filename());
     }
 
     std::string GetLastPath() const {
@@ -426,7 +426,7 @@ private:
         m_PlaylistNames.clear();
         m_PlaylistNames.reserve(m_Playlist.size());
         for (const auto& path : m_Playlist) {
-            m_PlaylistNames.push_back(std::filesystem::path(Utf8ToPath(path)).filename().string());
+            m_PlaylistNames.push_back(PathToUtf8(std::filesystem::path(Utf8ToPath(path)).filename()));
         }
     }
 
